@@ -1,0 +1,706 @@
+---
+title: "Project 2"
+format: html
+editor: visual
+---
+
+### Brief Project Description
+
+Hi, my name is Jacob Kawalski and I have just started a real estate business. But I am new to this area of work, and I need to understand the real estate market. Luckily, I have been blessed with a data set of different variables of houses in king county. But I need help of some business analyst to understand and explore this data set. Plus find the prices of these new houses!
+
+I called my friend Master Yeoda and asked if he could help. Unfortunate Master Yeoda could not help because he got too full of eating shrimp pasta. But he recommended three students Tai, Simon, and Marcus and said, "they are some of the funniest students in my class, I am sure they will help".
+
+After reaching out to Tai, Simon and Marcus, they gave me an appropriate model to understand the data set. They also helped me predict the price of the new houses in the data set. These 3 are the best and I am so thankful for this recommendation.
+
+### Objective
+
+From Tai, Simon, and Marcus
+
+Hi Jacob, we will love to help! Thanks for reaching out.
+
+Below we have attached the analytical thinking we did to this data set. We included 3 different models to help us predict the target variable. And we included the reason why we picked these models because we wanted to help you understand our thinking. We validated and evaluated the models as well to understand which one is the best. Then, we used the best model to predict the price of the new houses. We hope this helps and good luck with the real estate business!
+
+```{r}
+library(caret)
+library(ggplot2)
+library(lattice)
+library(dplyr)
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(forecast)
+library(car)
+library(carData)
+library(ROSE)
+library(corrgram)
+library(lmtest)
+library(gvlma)
+```
+
+# I. Data
+
+## 1. Describe the Data:
+
+When seeking a new home, key factors that influence a purchasing decision include square footage, the number of bedrooms and bathrooms, price, the year of construction, and the number of floors. These variables hold significant importance for prospective homeowners. While this dataset contains additional information, these aforementioned attributes stand out as the most critical. Notably, the data includes house prices, a pivotal factor in evaluating properties. A clear correlation emerges: houses with more bathrooms, bedrooms, and larger square footage tend to command higher prices. With the extensive dataset at hand, thorough analysis can unveil insights into the variables that drive a house's pricing dynamics.
+
+## 2. Import the Data
+
+```{r}
+house <- read.csv("house_32.csv", header = TRUE)
+
+```
+
+```{r}
+names(house)
+```
+
+```{r}
+t(t(names(house)))
+```
+
+```{r}
+str(house)
+```
+
+# II. First model: kNN model
+
+## 1. Clean the Data
+
+```{r}
+str(house)
+```
+
+#### Remove the unnecessary variables.
+
+```{r}
+# remove unnecesary variables
+house_1st_model <- house[, -c(1:6,14,19:23)]
+```
+
+```{r}
+house_1st_model <- na.omit(house_1st_model)
+t(t(names(house_1st_model)))
+```
+
+#### Reorder the data frame.
+
+```{r}
+# reorder the data frame
+house_1st_model <- house_1st_model[, c(2:11,1)]
+```
+
+```{r}
+str(house_1st_model)
+```
+
+The purpose of the next code is covert the predicted "Price" variable from type: numerical to character and then convert it to factor.
+
+The meaning of the code is:
+
+-   The house with "Price" over \$500,000 is considered as a High price House
+
+-   The house with "Price" below \$500,000 is considered as a Low price House
+
+```{r}
+# convert the predicted target - Price from numerical to character
+
+house_1st_model <- house_1st_model %>%
+  mutate(price = ifelse(price >= 500000, "High", "Low"))
+
+house_1st_model$price <- as.factor(house_1st_model$price)
+head(house_1st_model)
+```
+
+```{r}
+str(house_1st_model)
+```
+
+## 2. House Test Data
+
+```{r}
+house_test <- read.csv("house_test_32.csv", header = TRUE)
+```
+
+```{r}
+t(t(names(house_test)))
+```
+
+```{r}
+house_test_kNN <- house_test[, c(7:12,14:17)]
+t(t(names(house_test_kNN)))
+```
+
+## 3. Set training and validation set
+
+Here we set our training and validation sets for the KNN Model:
+
+-   **training_index_kNN** will be the training index for the kNN Model.
+
+-   **valid_index_kNN** will be the validation index for the kNN Model.
+
+-   **train_kNN** will be the data frame for the training data for the kNN model after splitting.
+
+-   **valid_kNN** will be data frame for the validation data for the kNN model after splitting
+
+```{r}
+set.seed(666)
+
+train_index_kNN <- sample(1:nrow(house_1st_model), 0.6 * nrow(house_1st_model))
+valid_index_kNN <- setdiff(1:nrow(house_1st_model), train_index_kNN)
+
+train_kNN <- house_1st_model[train_index_kNN, ]
+valid_kNN <- house_1st_model[valid_index_kNN, ]
+```
+
+```{r}
+nrow(train_kNN)
+```
+
+```{r}
+nrow(valid_kNN)
+```
+
+## 4. Prepare for kNN model
+
+-   **train_norm_kNN** will be the data frame for the normalization of the training data of the kNN model.
+
+-   **valid_norm_kNN** will be the data frame for the validation of the validation data of the kNN model.
+
+```{r}
+train_norm_kNN <- train_kNN
+valid_norm_kNN <- valid_kNN
+
+t(t(names(train_kNN)))
+```
+
+Normalize Training and Validation set
+
+Here we will prepare the data for analysis by creating pre-process model. We also normalized the selected columns in the train_norm data set based on the transformations learned from the norm values model.
+
+-   **norm_values_kNN** will be the data frame that will prepare for the analysis for the kNN model.
+
+```{r}
+norm_value_kNN <- preProcess(train_kNN[, -c(11)],
+                             method = c("center",
+                                        "scale"))
+train_norm_kNN[, -c(11)] <- predict(norm_value_kNN, 
+                                    train_kNN[, -c(11)]) 
+head(train_norm_kNN)
+```
+
+```{r}
+valid_norm_kNN[, -c(11)] <- predict(norm_value_kNN,
+                                    valid_kNN[, -c(11)])
+head(valid_norm_kNN)
+```
+
+Normalize house test data for kNN model
+
+```{r}
+house_test_kNN_norm <- predict(norm_value_kNN, house_test_kNN)
+house_test_kNN_norm
+```
+
+## 5. kNN model
+
+### 5.1 k = 3
+
+#### The Training
+
+-   **kNN_model_k3** is the kNN model for k = 3.
+
+```{r}
+kNN_model_k3 <- caret::knn3(price ~., data = train_norm_kNN, k = 3)
+kNN_model_k3
+```
+
+#### The Prediction
+
+#### Prediction on Training set
+
+-   **kNN_pred_k3_train** will be the prediction for the training set for the kNN model for k = 3.
+
+```{r}
+kNN_pred_k3_train <- predict(kNN_model_k3, newdata = train_norm_kNN[, -c(11)],
+                             type = "class")
+head(kNN_pred_k3_train)
+```
+
+```{r}
+confusionMatrix(kNN_pred_k3_train, as.factor(train_norm_kNN[, 11]))
+```
+
+#### Prediction on Validation set
+
+-   **kNN_pred_k3_valid** will be the prediction for the validation set for the kNN model for k = 3.
+
+```{r}
+kNN_pred_k3_valid <- predict(kNN_model_k3, newdata = valid_norm_kNN[, -c(11)],
+                             type = "class")
+head(kNN_pred_k3_valid)
+```
+
+```{r}
+kNN_pred_k3_prob <- predict(kNN_model_k3, newdata = valid_norm_kNN[, -c(11)],
+                             type = "prob")
+head(kNN_pred_k3_prob)
+```
+
+```{r}
+confusionMatrix(kNN_pred_k3_valid, as.factor(valid_norm_kNN[, 11]))
+```
+
+#### Accuracy comparison:
+
+Training: 0.8596 = 85.96%
+
+Validation: 0.7647 = 76.47%
+
+### 5.2 k = 5
+
+#### The Training
+
+-   **kNN_model_k5** is kNN model for k = 5.
+
+```{r}
+kNN_model_k5 <- caret::knn3(price ~., data = train_norm_kNN, k = 5)
+kNN_model_k5
+```
+
+#### The Prediction
+
+#### Prediction on Training Set
+
+-   **kNN_pred_k5_train** is the prediction for the training set for the kNN model for k = 5.
+
+```{r}
+kNN_pred_k5_train <- predict(kNN_model_k5, newdata = train_norm_kNN[, -c(11)],
+                             type = "class")
+head(kNN_pred_k5_train)
+```
+
+```{r}
+confusionMatrix(kNN_pred_k5_train, as.factor(train_norm_kNN[, 11]))
+```
+
+#### Prediction on Validation Set
+
+-   **kNN_pred_k5_valid** is the prediction for the validation set for the kNN model for k = 5.
+
+```{r}
+kNN_pred_k5_valid <- predict(kNN_model_k5, newdata = valid_norm_kNN[, -c(11)],
+                             type = "class")
+head(kNN_pred_k5_valid)
+```
+
+```{r}
+kNN_pred_k5_prob <- predict(kNN_model_k5, newdata = valid_norm_kNN[, -c(11)],
+                             type = "prob")
+head(kNN_pred_k5_prob)
+```
+
+```{r}
+confusionMatrix(kNN_pred_k5_valid, as.factor(valid_norm_kNN[, 11]))
+```
+
+#### Accuracy Comparison:
+
+Training: 0.8362 = 83.62%
+
+Validation: 0.776 = 77.6%
+
+### 5.3 k = 9
+
+#### The Training
+
+-   kNN_model_k9 is kNN model for k=9.
+
+```{r}
+kNN_model_k9 <- caret::knn3(price ~., data = train_norm_kNN, k = 9)
+kNN_model_k9
+```
+
+#### The Prediction
+
+#### Prediction on Training Set
+
+-   kNN_pred_k9_train is the prediction for the training set for the kNN model for k=5.
+
+```{r}
+kNN_pred_k9_train <- predict(kNN_model_k9, newdata = train_norm_kNN[, -c(11)],
+                             type = "class")
+head(kNN_pred_k9_train)
+```
+
+```{r}
+confusionMatrix(kNN_pred_k9_train, as.factor(train_norm_kNN[,11]))
+```
+
+#### Prediction on Validation Set
+
+-   kNN_pred_k9_valid is the prediction for the validation set for the kNN model for k = 5.
+
+```{r}
+kNN_pred_k9_valid <- predict(kNN_model_k9, newdata = valid_norm_kNN[, -c(11)],
+                             type = "class")
+head(kNN_pred_k9_valid)
+```
+
+```{r}
+kNN_pred_k9_prob <- predict(kNN_model_k9, newdata = valid_norm_kNN[, -c(11)],
+                             type = "prob")
+head(kNN_pred_k9_prob)
+```
+
+```{r}
+confusionMatrix(kNN_pred_k9_valid, as.factor(valid_norm_kNN[,11]))
+```
+
+#### Accuracy Comparison:
+
+Training: 0.8182 = 81.82%
+
+Validation: 0.7783 = 77.83%
+
+### 5.4 Model Evaluation
+
+```{r}
+library(ROSE)
+```
+
+#### k = 3
+
+```{r}
+ROSE::roc.curve(valid_norm_kNN$price, kNN_pred_k3_valid)
+```
+
+#### k = 5
+
+```{r}
+ROSE::roc.curve(valid_norm_kNN$price, kNN_pred_k5_valid)
+```
+
+#### k = 9
+
+```{r}
+ROSE::roc.curve(valid_norm_kNN$price, kNN_pred_k9_valid)
+```
+
+## 6. Conclusion for the best kNN model
+
+### 6.1 Accuracy Comparison
+
+-   k = 3:
+
+    -   Training Set: 0.8596 = 85.96%
+
+        Validation Set: 0.7647 = 76.47%
+
+-   k = 5
+
+    -   Training Set: 0.8362 = 83.62%
+
+        Validation Set: 0.776 = 77.6%
+
+-   k = 9
+
+    -   Training Set: 0.8182 = 81.82%
+
+        Validation Set: 0.7783 = 77.83%
+
+    -   This kNN model with k = 9 have the Accuracy between Training and Validation set has the smallest difference
+
+### 6.2 AUC Comparison
+
+-   k = 3: AUC = 0.755
+
+-   k = 5: AUC = 0.765
+
+-   k = 9: AUC = 0.767
+
+### 6.3 Conclusion:
+
+-   As we can see, the Accuracy between Training and Validation set and AUC of k =9 is the best out of 3 models, because:
+
+    -   kNN model with k = 9 have the Accuracy between Training and Validation set has the smallest difference
+
+    -   AUC of kNN model have the largest number out of 3 (0.767 \> 0.765 \> 0.755)
+
+# III. Decision Tree and Multiple Regression Model
+
+## 1. Regression Tree Model
+
+### 1.1 Clean The Data
+
+```{r}
+house2 <- house[, -c(1:6, 17:18, 21:23)]
+str(house2)
+```
+
+```{r}
+head(house2)
+```
+
+### 1.2 Training and Validation of Regression Tree
+
+-   train_index_class_tr will be the training index
+
+-   valid_index_class_tr will be the validation index
+
+-   train_class will be the data frame for the training data
+
+-   valid_class will be the data frame for the validation data
+
+```{r}
+set.seed(666)
+
+train_index_class_tr <- sample(1:nrow(house2), 0.7 * nrow(house2))
+valid_index_class_tr <- setdiff(1:nrow(house2), train_index_class_tr)
+
+train_class <- house2[train_index_class_tr,]
+valid_class <- house2[valid_index_class_tr,]
+```
+
+```{r}
+nrow(train_class)
+```
+
+```{r}
+nrow(valid_class)
+```
+
+```{r}
+head(train_class, 10)
+```
+
+```{r}
+head(valid_class, 10)
+```
+
+```{r}
+str(train_class)
+```
+
+```{r}
+str(valid_class)
+```
+
+### 1.3 Correlation Between Variables
+
+In this instance, we will employ the corrgram library to gain insights into the correlations among our variables. The color blue signifies a positive correlation, whereas red indicates a negative one. The intensity or depth of the color reflects the strength of the relationship. A darker shade suggests a more robust correlation, whether it is positive or negative.
+
+```{r}
+corrgram(train_class)
+```
+
+### 1.4 Regression Tree
+
+Next we will create a regression tree to use as a prediction model and help us with our final decision.
+
+I have created a decision tree model and we can see that sqft_liv and grade are 2 important aspect to determine the price of the house. Moreover, different variable we could use to determine the price of the house that could be on this project is waterfront and yr_built. We could use these variable, including sqft_liv to determine if the price of the house is high or low.
+
+```{r}
+regress_tr <- rpart(price ~ .,
+                    data = train_class, method = "anova", maxdepth = 20)
+prp(regress_tr)
+```
+
+### 1.5 Comparing the training set and validation set of decision tree model
+
+```{r}
+pred_train <- predict(regress_tr, train_class)
+accuracy(pred_train, train_class$price)
+```
+
+```{r}
+pred_valid <- predict(regress_tr, valid_class)
+accuracy(pred_valid, valid_class$price)
+```
+
+In assessing the performance of our multiple regression model across both the training and validation sets, we rely on the Root Mean Square Deviation (RMSE) as our primary metric. The RMSE is a pivotal measure for gauging the accuracy of our model, with lower values signifying higher accuracy. In the case of our regression tree model, the RMSE for the training set is recorded at 233236.1 while the validation set shows a slightly higher RMSE of 244315.5.
+
+Since the RMSE is an indicator of error, the relative discrepancy between these values suggests that the validation set is more accurate compared to the training set. This discrepancy is within expectations, considering that training models typically outperform validation models due to the larger volume of data available for training.
+
+```{r}
+sd(house2$price)
+```
+
+```{r}
+sd(train_class$price)
+sd(valid_class$price)
+```
+
+```{r}
+max(train_class$price) - min(train_class$price)
+```
+
+## 2. Multiple Regression Model
+
+In order to understand the data overall, we decided to create a regression model which contains all of the variables we initially decided on. Here, it seems that the adjusted R-squared is, 0.6547, which implies that 65.47% of the variance in the price of a home can be explained by the set of independent variables. In addition, the adjustment considers the number of variables in the model.
+
+Further examining the variables, it seems that many of them are quite significant to the model including bedrooms, bathrooms, and sqft_living. On the other hand, the floors variable is not significant.
+
+In this case, the intercept of 7.416e+04 (approx. \$741,600) could be identified as the average price for housing in the King County.
+
+```{r}
+house32_new <- lm(price ~ bedrooms + 
+                    bathrooms +
+                    sqft_living + 
+                    sqft_lot +
+                    waterfront, data = train_class)
+summary(house32_new)
+```
+
+In this instance, we will employ the corrgram library to gain insights the correlations among our variables. The color blue signifies a positive correlation, whereas red indicates a negative one. The intensity or depth of the color reflects the strength of the relationship. A darker shade suggests a more robust correlation, whether it is positive or negative.
+
+```{r}
+library(corrgram)
+pairs(price ~ ., data = train_class, pch = ".")
+corrgram(train_class)
+```
+
+```{r}
+library(car)
+vif(house32_new)
+```
+
+### 2.1 Evaluate and Comparing the accuracy of training set and validation set
+
+```{r}
+house32_pred_train <- predict(house32_new,
+                                train_class)
+
+accuracy(house32_pred_train, train_class$price)
+```
+
+```{r}
+house32_pred_valid <- predict(house32_new,
+                                valid_class)
+accuracy(house32_pred_valid, valid_class$price)
+```
+
+In assessing the performance of our multiple regression model across both the training and validation sets, we rely on the Root Mean Square Deviation (RMSE) as our primary metric. The RMSE is a pivotal measure for gauging the accuracy of our model, with lower values signifying higher accuracy.
+
+In the case of our multiple linear regression, the RMSE for the training set is recorded at 218823.3 while the validation set shows a slightly higher RMSE of 211200.6. Since the RMSE is an indicator of error, the relative discrepancy between these values suggests that the validation set is less accurate compared to the training set. This discrepancy is within expectations, considering that training models typically outperform validation models due to the larger volume of data available for training.
+
+```{r}
+bptest(house32_new)
+```
+
+```{r}
+gvlma_analysis <- gvlma(house32_new)
+gvlma_analysis
+```
+
+# IV. Best model and Predicion of the House Test
+
+## 1. Predicting House Test from the Best model - Regression Tree
+
+```{r}
+house_test2 <- read.csv("house_test_32.csv", header = TRUE)
+```
+
+```{r}
+t(t(names(house_test2)))
+```
+
+```{r}
+predicted_price <- predict(regress_tr, house_test2)
+t(t(predicted_price))
+```
+
+```{r}
+predict_price_df <- as.data.frame(predicted_price)
+names(predict_price_df) <- "Price"
+
+predict <- cbind(house_test2, predict_price_df)
+predict
+```
+
+## 2. Conclusion
+
+### 2.1 Summary
+
+We decide to choose 3 model because it gave us a clear understanding and the relationship between all the variable to predict the house price. We also comparing 3 models evaluation to find out the best model out of 3 and use it to predict the House Test Data.
+
+**The Multiple Regression Model**
+
+-   Training Data
+
+    -   Mean Error (ME): -2.587928e-09
+
+    -   Root Mean Squared Erroe (RMSE): 218823.3
+
+    -   Mean Absolute Error (MAE): 142061
+
+    -   Mean Percentage Error (MPE): -7.85%
+
+    -   Mean Absolute Percentage Error (MAPE): 29.79%
+
+-   Validation Data
+
+    -   Mean Error (ME): -817.0995
+
+    -   Root Mean Squared Erroe (RMSE): 211200.6
+
+    -   Mean Absolute Error (MAE): 141775.4
+
+    -   Mean Percentage Error (MPE): -7.62%
+
+    -   Mean Absolute Percentage Error (MAPE): 29.79%
+
+**The Regression Tree Model**
+
+-   Training Data
+
+    -   Mean Error (ME): -1.365306e-11
+
+    -   Root Mean Squared Erroe (RMSE): 233236.1
+
+    -   Mean Absolute Error (MAE): 156152.6
+
+    -   Mean Percentage Error (MPE): -14.87%
+
+    -   Mean Absolute Percentage Error (MAPE): 33.79%
+
+-   Validation Data
+
+    -   Mean Error (ME): -2763.554
+
+    -   Root Mean Squared Erroe (RMSE): 244315.5
+
+    -   Mean Absolute Error (MAE): 160821.9
+
+    -   Mean Percentage Error (MPE): -15.23%
+
+    -   Mean Absolute Percentage Error (MAPE): 34.39%
+
+**kNN Model**
+
+-   k = 9
+
+    -   Training Set: 0.8182 = 81.82%
+
+    -   Validation Set: 0.7783 = 77.83%
+
+    -   This kNN model with k = 9 have the Accuracy between Training and Validation set has the smallest difference
+
+    -   k = 9: AUC = 0.767
+
+### 2.2 Conclusion
+
+-   After comparing the result of 3 model, we decide to pick the Regression Tree model to be the best model out of 3, because:
+
+    -   RMSE (Training) \< RMSE (Validation) - (233236.1 \< 244315.5) --\> Good model
+
+    -   For kNN, the Accuracy is not too high (81.82% - Training vs 77.83% - Validation)
+
+    -   For Multiple Regression:
+
+        -   RMSE (Training) \> RMSE (Validation) - (218823.3 \> 211200.6) --\> Bad model
+
+-   Using the Regression Model, we able to predict the price of 20 new houses from the House Test data and we can see that the most valuable house is predicted at \$994,249.2 which included 5 bedrooms, 3.75 bathrooms, 3860 square living and 6901 square lot.
+
+-   Moreover, we can see that the least valuable house is \$378,377, in which there are 10 houses in the list that have this similar price. Also, by comparing the most valuable house with the least valuable house, we can see that the key point that make the house more valuable is the grade given to the housing unit, based on King County grading system. The higher the better.
+
+-   Overall, we also realized that the main aspect for the price of each house is depend on the square living of the house.
